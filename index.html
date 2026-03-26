@@ -479,6 +479,168 @@
       );
     }
 
+    // ─── EXPENSE INTAKE TAB ──────────────────────────────────────────────
+    const EXP_CATS = ["debt","operations","platform","maintenance","other"];
+
+    function ExpenseIntakeTab({allExpenses, userExpenses, onAdd, onRemove, derived}) {
+      const {activeScooters, totalExDonors} = derived;
+      const [form, setForm] = React.useState({name:"",amount:"",category:"operations",city:"all",recurring:true});
+      const [msg, setMsg]   = React.useState("");
+      const [catFilter, setCatFilter] = React.useState("all");
+
+      const totalFixed    = allExpenses.reduce((s,e)=>s+e.amount,0);
+      const costPerActive = activeScooters>0 ? totalFixed/activeScooters : 0;
+      const costPerTotal  = totalExDonors>0  ? totalFixed/totalExDonors  : 0;
+      const userTotal     = userExpenses.reduce((s,e)=>s+e.amount,0);
+
+      const grouped = React.useMemo(()=>{
+        const g={};
+        EXP_CATS.forEach(c=>{g[c]=[]});
+        const src = catFilter==="all" ? allExpenses : allExpenses.filter(e=>e.category===catFilter);
+        src.forEach(e=>{ const cat=e.category||"other"; if(g[cat]) g[cat].push(e); else g["other"].push(e); });
+        return g;
+      },[allExpenses,catFilter]);
+
+      const submit = (e) => {
+        e.preventDefault();
+        if(!form.name.trim()||!form.amount) return;
+        onAdd({id:`ue_${Date.now()}`,name:form.name,amount:parseFloat(form.amount),category:form.category,city:form.city,recurring:form.recurring,userAdded:true});
+        setForm({name:"",amount:"",category:"operations",city:"all",recurring:true});
+        setMsg("✓ Expense added — all tabs updated");
+        setTimeout(()=>setMsg(""),3500);
+      };
+
+      return (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:18}}>
+
+          {/* ── KPI Cards ── */}
+          <Card title="Cost / Active Scooter / Month" accent={C.green}>
+            <KPI label={`${activeScooters} active scooters (Corinth + Nafplion)`} value={fmt(costPerActive,2)} color={C.green}/>
+            <div style={{background:C.bg,borderRadius:6,padding:"10px 12px",marginTop:10}}>
+              <div style={{color:C.dim,fontSize:11,marginBottom:2}}>Per day</div>
+              <div style={{color:C.green,fontSize:20,fontWeight:800}}>{fmt(costPerActive/30,2)}</div>
+            </div>
+          </Card>
+
+          <Card title="Cost / Scooter / Month (All Conditions)" accent={C.blue}>
+            <KPI label={`${totalExDonors} scooters — excl. donors & lost`} value={fmt(costPerTotal,2)} color={C.blue}/>
+            <div style={{background:C.bg,borderRadius:6,padding:"10px 12px",marginTop:10}}>
+              <div style={{color:C.dim,fontSize:11,marginBottom:2}}>Per day</div>
+              <div style={{color:C.blue,fontSize:20,fontWeight:800}}>{fmt(costPerTotal/30,2)}</div>
+            </div>
+          </Card>
+
+          <Card title="Total Monthly Expenses" accent={C.yellow}>
+            <KPI label={`${allExpenses.length} line items total`} value={fmt(totalFixed,2)} color={C.yellow}/>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:12,padding:"8px 0",borderTop:`1px solid ${C.border}`}}>
+              <span style={{color:C.dim,fontSize:12}}>Baseline</span>
+              <span style={{fontWeight:600,fontSize:13}}>{fmt(totalFixed-userTotal,2)}</span>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0"}}>
+              <span style={{color:C.cyan,fontSize:12}}>You added ({userExpenses.length})</span>
+              <span style={{fontWeight:600,fontSize:13,color:C.cyan}}>{fmt(userTotal,2)}</span>
+            </div>
+          </Card>
+
+          {/* ── Intake Form ── */}
+          <Card title="➕ Add Expense" accent={C.cyan}>
+            {msg && <div style={{padding:"8px 12px",background:"#10b98115",border:`1px solid ${C.green}`,borderRadius:6,color:"#86efac",marginBottom:12,fontWeight:600,fontSize:12}}>{msg}</div>}
+            <form onSubmit={submit}>
+              <div style={{marginBottom:11}}>
+                <label style={{display:"block",marginBottom:4,color:C.dim,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5}}>Name *</label>
+                <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Van lease, Generator fuel"/>
+              </div>
+              <div style={{marginBottom:11}}>
+                <label style={{display:"block",marginBottom:4,color:C.dim,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5}}>Amount €/month *</label>
+                <input type="number" step="0.01" min="0" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))} placeholder="0.00"/>
+              </div>
+              <div style={{marginBottom:11}}>
+                <label style={{display:"block",marginBottom:4,color:C.dim,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5}}>Category</label>
+                <select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>
+                  {EXP_CATS.map(c=><option key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>)}
+                </select>
+              </div>
+              <div style={{marginBottom:11}}>
+                <label style={{display:"block",marginBottom:4,color:C.dim,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5}}>City</label>
+                <select value={form.city} onChange={e=>setForm(f=>({...f,city:e.target.value}))}>
+                  {["all","corinth","nafplion","corfu"].map(c=><option key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>)}
+                </select>
+              </div>
+              <div style={{marginBottom:16,display:"flex",alignItems:"center",gap:10}}>
+                <span style={{color:C.dim,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5}}>Recurring</span>
+                <button type="button" onClick={()=>setForm(f=>({...f,recurring:!f.recurring}))} style={{padding:"4px 14px",background:form.recurring?C.green+"33":"transparent",border:`1px solid ${form.recurring?C.green:C.border}`,color:form.recurring?C.green:C.dim,borderRadius:6,fontWeight:600,fontSize:12,cursor:"pointer"}}>
+                  {form.recurring?"Yes — Monthly":"One-time"}
+                </button>
+              </div>
+              <button type="submit" style={{width:"100%",padding:"10px",background:`linear-gradient(135deg,${C.cyan},${C.blue})`,border:"none",color:"#fff",borderRadius:8,fontWeight:700,fontSize:14,cursor:"pointer",boxShadow:"0 4px 12px rgba(6,182,212,0.25)"}}>
+                Add Expense
+              </button>
+            </form>
+          </Card>
+
+          {/* ── Expense Table ── */}
+          <Card title="All Expenses" span={2} accent={C.blue}>
+            <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+              {["all",...EXP_CATS].map(c=>(
+                <button key={c} onClick={()=>setCatFilter(c)} style={{padding:"5px 12px",background:catFilter===c?C.blue:"transparent",border:`1px solid ${catFilter===c?C.blue:C.border}`,color:catFilter===c?"#fff":C.dim,borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer"}}>
+                  {c==="all"?"All":c.charAt(0).toUpperCase()+c.slice(1)}
+                </button>
+              ))}
+            </div>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                <thead>
+                  <tr style={{borderBottom:`2px solid ${C.border}`}}>
+                    {[["Name","left"],["€/month","right"],["€/active scooter","right"],["€/all scooters","right"],["City","right"],["","right"]].map(([h,a])=>(
+                      <th key={h} style={{padding:"6px 10px",textAlign:a,color:C.dim,fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {EXP_CATS.map(cat=>{
+                    const rows = grouped[cat]||[];
+                    if(!rows.length) return null;
+                    const subtotal = rows.reduce((s,e)=>s+e.amount,0);
+                    return [
+                      <tr key={cat+"_head"} style={{background:C.bg}}>
+                        <td colSpan={6} style={{padding:"7px 10px",fontWeight:700,color:C.yellow,fontSize:10,textTransform:"uppercase",letterSpacing:1}}>
+                          {cat} — {fmt(subtotal,0)}/mo · {fmt(subtotal/activeScooters,2)}/active · {fmt(subtotal/totalExDonors,2)}/all
+                        </td>
+                      </tr>,
+                      ...rows.map(e=>(
+                        <tr key={e.id||e.name} style={{borderBottom:`1px solid ${C.border}`,background:e.userAdded?"rgba(6,182,212,0.05)":"transparent"}}>
+                          <td style={{padding:"7px 10px",color:e.userAdded?C.cyan:C.text,fontWeight:e.userAdded?600:400}}>
+                            {e.name}
+                            {e.userAdded && <span style={{marginLeft:6,fontSize:9,color:C.cyan,fontWeight:800,background:C.cyan+"22",padding:"1px 5px",borderRadius:3}}>NEW</span>}
+                            {!e.recurring&&e.userAdded && <span style={{marginLeft:4,fontSize:9,color:C.purple,fontWeight:700}}>one-time</span>}
+                          </td>
+                          <td style={{textAlign:"right",padding:"7px 10px",fontWeight:600}}>{fmt(e.amount,2)}</td>
+                          <td style={{textAlign:"right",padding:"7px 10px",color:C.dim}}>{fmt(e.amount/activeScooters,2)}</td>
+                          <td style={{textAlign:"right",padding:"7px 10px",color:C.dim}}>{fmt(e.amount/totalExDonors,2)}</td>
+                          <td style={{textAlign:"right",padding:"7px 10px",color:C.dim,fontSize:10,textTransform:"capitalize"}}>{e.city||"all"}</td>
+                          <td style={{textAlign:"right",padding:"7px 10px"}}>
+                            {e.userAdded && <button onClick={()=>onRemove(e.id)} style={{background:"transparent",border:`1px solid ${C.red}55`,color:C.red,borderRadius:4,padding:"2px 8px",fontSize:10,cursor:"pointer",fontWeight:600}}>✕</button>}
+                          </td>
+                        </tr>
+                      ))
+                    ];
+                  })}
+                  <tr style={{borderTop:`2px solid ${C.border}`,background:C.bg}}>
+                    <td style={{padding:"10px",fontWeight:800,fontSize:13}}>Total</td>
+                    <td style={{textAlign:"right",padding:"10px",fontWeight:800,fontSize:13,color:C.yellow}}>{fmt(totalFixed,2)}</td>
+                    <td style={{textAlign:"right",padding:"10px",fontWeight:700,color:C.green}}>{fmt(costPerActive,2)}</td>
+                    <td style={{textAlign:"right",padding:"10px",fontWeight:700,color:C.blue}}>{fmt(costPerTotal,2)}</td>
+                    <td colSpan={2}></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+        </div>
+      );
+    }
+
     // ─── POW TRACKER TABS ────────────────────────────────────────────────
     const PEOPLE = ["kostas","panos","tsoutsos"];
     const PERSON_COLOR = {kostas:C.blue, panos:C.green, tsoutsos:C.purple};
@@ -719,14 +881,24 @@
       const [opsTab, setOpsTab] = useState("overview");
       const [powTab, setPowTab] = useState("weekly");
       const [newTasks, setNewTasks] = useState([]);
+      const [userExpenses, setUserExpenses] = useState([]);
 
       useEffect(()=>{
         try { const s=localStorage.getItem("pow_new_tasks"); if(s) setNewTasks(JSON.parse(s)); } catch(e){}
+        try { const s=localStorage.getItem("mg_expenses"); if(s) setUserExpenses(JSON.parse(s)); } catch(e){}
       },[]);
 
       useEffect(()=>{
         try { localStorage.setItem("pow_new_tasks",JSON.stringify(newTasks)); } catch(e){}
       },[newTasks]);
+
+      useEffect(()=>{
+        try { localStorage.setItem("mg_expenses",JSON.stringify(userExpenses)); } catch(e){}
+      },[userExpenses]);
+
+      const allExpenses = useMemo(()=>[...EXPENSES,...userExpenses],[userExpenses]);
+      const addExpense = (exp) => setUserExpenses(n=>[...n,exp]);
+      const removeExpense = (id) => setUserExpenses(n=>n.filter(e=>e.id!==id));
 
       const powData = useMemo(()=>POW_RAW,[]);
 
@@ -741,11 +913,13 @@
         return c;
       },[allTasks]);
 
-      const totalFixed  = EXPENSES.reduce((s,e)=>s+e.amount,0);
+      const totalFixed  = allExpenses.reduce((s,e)=>s+e.amount,0);
       const totalDebt   = DEBT_LINES.reduce((s,d)=>s+d.balance,0);
       const debtService = DEBT_LINES.reduce((s,d)=>s+d.monthly,0);
       const activeScooters = FLEET.corinth.active+FLEET.nafplion.active;
-      const totalRepair = FLEET.corinth.repairHub+FLEET.nafplion.repairHub;
+      const totalRepair    = FLEET.corinth.repairHub+FLEET.nafplion.repairHub;
+      const totalFleet     = FLEET.corinth.total+FLEET.nafplion.total+FLEET.corfu.total;
+      const totalExDonors  = totalFleet - DONOR_SCOOTERS - (FLEET.corinth.lost||0);
       const latestC = REV.corinth[REV.corinth.length-1];
       const latestN = REV.nafplion[REV.nafplion.length-1];
       const marRevenue = latestC.revenue+latestN.revenue;
@@ -764,13 +938,13 @@
       },[]);
 
       const expCats = useMemo(()=>{
-        const c={}; EXPENSES.forEach(e=>{c[e.category]=(c[e.category]||0)+e.amount;});
+        const c={}; allExpenses.forEach(e=>{c[e.category]=(c[e.category]||0)+e.amount;});
         return Object.entries(c).map(([name,value])=>({name:name.charAt(0).toUpperCase()+name.slice(1),value:Math.round(value*100)/100}));
-      },[]);
+      },[allExpenses]);
 
-      const derived = {totalFixed,totalDebt,debtService,activeScooters,totalRepair,latestC,latestN,marRevenue,costPerDay,revPerDay,margin,avgPerTrip,cLifetime,nLifetime};
+      const derived = {totalFixed,totalDebt,debtService,activeScooters,totalRepair,totalFleet,totalExDonors,latestC,latestN,marRevenue,costPerDay,revPerDay,margin,avgPerTrip,cLifetime,nLifetime};
 
-      const OPS_TABS  = [{id:"overview",label:"Overview"},{id:"unit-econ",label:"Unit Economics"},{id:"fleet",label:"Fleet"},{id:"pl",label:"P&L"},{id:"corfu",label:"Corfu Launch"}];
+      const OPS_TABS  = [{id:"overview",label:"Overview"},{id:"unit-econ",label:"Unit Economics"},{id:"fleet",label:"Fleet"},{id:"pl",label:"P&L"},{id:"corfu",label:"Corfu Launch"},{id:"expense",label:"💰 Expenses"}];
       const POW_TABS  = [{id:"weekly",label:"Weekly"},{id:"person",label:"By Person"},{id:"history",label:"History"},{id:"add",label:"➕ Add Tasks"},{id:"leaderboard",label:"🏆 Leaderboard"}];
 
       return (
@@ -808,6 +982,7 @@
                 {opsTab==="fleet"      && <FleetTab derived={derived} combined={combined}/>}
                 {opsTab==="pl"         && <PLTab derived={derived} combined={combined}/>}
                 {opsTab==="corfu"      && <CorfuTab/>}
+                {opsTab==="expense"    && <ExpenseIntakeTab allExpenses={allExpenses} userExpenses={userExpenses} onAdd={addExpense} onRemove={removeExpense} derived={derived}/>}
               </>
             )}
             {module==="pow" && (
